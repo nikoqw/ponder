@@ -43,7 +43,7 @@ namespace ponder {
 namespace uses {
 
 /**
- *  The "uses" modules are a way for Uses of the compile-time types to store
+ *  The "uses" are a way for users of the compile-time types to store
  *  information. For example, this may be templated code that uses the types only
  *  available during compilation. These may then be used at runtime. The idea is
  *  to decouple modules from the metaclass data to avoid complexity.
@@ -51,9 +51,9 @@ namespace uses {
  *  Each module supplies (pseudo-code):
  *      
  *  \code
- *  struct Module_name {
- *      static module_ns::impl::PerConstructor_t* perConstructor(IdRef name, C constructor)
- *      static module_ns::impl::PerFunc_t* perFunction(IdRef name, F function)
+ *  struct Use_name {
+ *      static module_ns::detail::PerConstructor_t* perConstructor(IdRef name, C constructor)
+ *      static module_ns::detail::PerFunc_t* perFunction(IdRef name, F function)
  *  }
  *  \endcode
  */
@@ -64,13 +64,13 @@ namespace uses {
  *  This module provides runtime behaviour like creation of UserObjects and calling 
  *  functions
  */
-struct RuntimeModule
+struct RuntimeUse
 {
     /// Factory for per-function runtime data
     template <typename F, typename FTraits, typename Policies_t>
-    static runtime::impl::FunctionCaller* perFunction(IdRef name, F function)
+    static runtime::detail::FunctionCaller* perFunction(IdRef name, F function)
     {
-        return new runtime::impl::FunctionCallerImpl<F, FTraits, Policies_t>(name, function);
+        return new runtime::detail::FunctionCallerImpl<F, FTraits, Policies_t>(name, function);
     }
 };
 
@@ -80,13 +80,13 @@ struct RuntimeModule
  *  This module provides Lua support.
  */
 #if PONDER_USING_LUA
-struct LuaModule
+struct LuaUse
 {
     /// Factory for per-function runtime data
     template <typename F, typename FTraits, typename Policies_t>
-    static lua::impl::FunctionCaller* perFunction(IdRef name, F function)
+    static lua::detail::FunctionCaller* perFunction(IdRef name, F function)
     {
-        return new lua::impl::FunctionCallerImpl<F, FTraits, Policies_t>(name, function);
+        return new lua::detail::FunctionCallerImpl<F, FTraits, Policies_t>(name, function);
     }
 };
 #endif // PONDER_USING_LUA
@@ -100,17 +100,19 @@ struct Uses
 {
     enum {
         eRuntimeModule,                 ///< Runtime module enumeration
-        PONDER_IF_LUA(eLuaModule)    ///< Lua module enumeration
+        PONDER_IF_LUA(eLuaModule,)      ///< Lua module enumeration
+        eUseCount
     };
     
-     /// Modules we would like to use.
-    typedef std::tuple<RuntimeModule
-                       PONDER_IF_LUA(,LuaModule)> Modules;
+     /// Metadata uses we are using.
+    typedef std::tuple<RuntimeUse
+                       PONDER_IF_LUA(,LuaUse)
+                      > Users;
 
     /// Type that stores the per-function uses data
     typedef std::tuple<
-            runtime::impl::FunctionCaller*
-            PONDER_IF_LUA(,lua::impl::FunctionCaller*)
+            runtime::detail::FunctionCaller*
+            PONDER_IF_LUA(,lua::detail::FunctionCaller*)
         > PerFunctionUserData;
     
     // Access note:
@@ -118,6 +120,9 @@ struct Uses
     //  PerFunc_t* std::get<I>(getUsesData());
 };
     
+static_assert(Uses::eUseCount==std::tuple_size<Uses::Users>::value, "Size mismatch");
+static_assert(Uses::eUseCount==std::tuple_size<Uses::PerFunctionUserData>::value, "Size mismatch");
+
 } // namespace uses
 } // namespace ponder
 

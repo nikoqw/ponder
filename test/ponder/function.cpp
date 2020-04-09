@@ -152,7 +152,7 @@ namespace FunctionTest
         }
     };
     
-    void nonMember1(MyClass& object)  // TODO - allow non-const refs
+    void nonMember1(MyClass& object)
     {
         object.p1 = true;
     }
@@ -167,7 +167,30 @@ namespace FunctionTest
         return object->p3;
     }
     
+    int refParam1(int a, const int *b)
+    {
+        assert(b != nullptr);
+        return a + *b;
+    }
+
+    // return value via param
+    void refParam2(float *sum, const float *value)
+    {
+        assert(sum != nullptr);
+        assert(value != nullptr);
+        *sum += *value;
+    }
+
+    int refParam3(int a, const int &b)
+    {
+        return a + b;
+    }
     
+    void refParam4(float &sum, const float &value)
+    {
+        sum += value;
+    }
+
     class DataHolder
     {
     public:
@@ -203,6 +226,9 @@ namespace FunctionTest
             .value("One",  One)
             .value("Two",  Two);
 
+//        ponder::Class::declare<int>();
+//        ponder::Class::declare<float>();
+
         ponder::Class::declare<MyType>();
 
         ponder::Class::declare<NonCopyable>();
@@ -216,6 +242,10 @@ namespace FunctionTest
             .function("nonMember1", &nonMember1) // object by reference
             .function("nonMember2", &nonMember2) // object by value + parameter
             .function("nonMember3", &nonMember3) // object by pointer
+            .function("refParam1", &refParam1)   // params are refs/"out" pointer
+            .function("refParam2", &refParam2)   // params are refs/"out" pointer
+//            .function("refParam3", &refParam3)   // params are refs/"out" reference
+//            .function("refParam4", &refParam4)   // params are refs/"out" reference
 
             // ***** member functions *****
             .function("member1", &MyClass::member1) // non-const
@@ -288,6 +318,8 @@ PONDER_AUTO_TYPE(FunctionTest::MyBase, &FunctionTest::declare)
 PONDER_AUTO_TYPE(FunctionTest::DataHolder, &FunctionTest::declare)
 PONDER_AUTO_TYPE(FunctionTest::DataModifier, &FunctionTest::declare)
 PONDER_AUTO_TYPE(FunctionTest::Policy, &FunctionTest::declare)
+//PONDER_TYPE(int)        // TODO: remove necessity to do this
+//PONDER_TYPE(float)
 
 using namespace FunctionTest;
 
@@ -298,6 +330,10 @@ struct FunctionTestFixture
     ,   fn_nonMember1(metaclass.function("nonMember1"))
     ,   fn_nonMember2(metaclass.function("nonMember2"))
     ,   fn_nonMember3(metaclass.function("nonMember3"))
+    ,   fn_refParam1(metaclass.function("refParam1"))
+    ,   fn_refParam2(metaclass.function("refParam2"))
+//    ,   fn_refParam3(metaclass.function("refParam3"))
+//    ,   fn_refParam4(metaclass.function("refParam4"))
     ,   fn_member1(metaclass.function("member1"))
     ,   fn_member2(metaclass.function("member2"))
     ,   fn_member3(metaclass.function("member3"))
@@ -327,6 +363,10 @@ struct FunctionTestFixture
     const ponder::Function &fn_nonMember1;
     const ponder::Function &fn_nonMember2;
     const ponder::Function &fn_nonMember3;
+    const ponder::Function &fn_refParam1;
+    const ponder::Function &fn_refParam2;
+//    const ponder::Function &fn_refParam3;
+//    const ponder::Function &fn_refParam4;
     const ponder::Function &fn_member1;
     const ponder::Function &fn_member2;
     const ponder::Function &fn_member3;
@@ -350,8 +390,6 @@ struct FunctionTestFixture
     const ponder::Function &fn_nonClassFunc2;
     const ponder::Function &fn_nonCopyRef;
     const ponder::Function &fn_nonCopyPtr;
-
-    const ponder::Function *functions[23];
 };
 
 //-----------------------------------------------------------------------------
@@ -365,6 +403,11 @@ TEST_CASE_METHOD(FunctionTestFixture, "Registered function properties can be int
         IS_TRUE(fn_nonMember1.kind() == ponder::FunctionKind::Function);
         IS_TRUE(fn_nonMember2.kind() == ponder::FunctionKind::Function);
         IS_TRUE(fn_nonMember3.kind() == ponder::FunctionKind::Function);
+        
+        IS_TRUE(fn_refParam1.kind() == ponder::FunctionKind::Function);
+        IS_TRUE(fn_refParam2.kind() == ponder::FunctionKind::Function);
+//        IS_TRUE(fn_refParam3.kind() == ponder::FunctionKind::Function);
+//        IS_TRUE(fn_refParam4.kind() == ponder::FunctionKind::Function);
 
         IS_TRUE(fn_member1.kind() == ponder::FunctionKind::MemberFunction);
         IS_TRUE(fn_member2.kind() == ponder::FunctionKind::MemberFunction);
@@ -695,6 +738,59 @@ TEST_CASE_METHOD(FunctionTestFixture, "Registered functions can be called with t
         Value ncr = callStatic(fn_nonCopyRef);
         Value ncp = callStatic(fn_nonCopyPtr);
     }
+    
+    // Function params can be pointers, which may return values
+    SECTION("Function params can be references (pointers)")
+    {
+        using namespace ponder::runtime;
+
+        int b = 7;
+        ponder::Value ret;
+        //ret = callStatic(fn_refParam1, ponder::Args(3, &b));
+        ret = callStatic(fn_refParam1, 3, &b);
+        REQUIRE(ret.to<int>() == 7 + 3);
+        REQUIRE(b == 7);
+    }
+
+    SECTION("Function params can return results (pointers)")
+    {
+        using namespace ponder::runtime;
+        
+        float sum = 0;
+        float value = 7.5f;
+        ponder::Value ret;
+        callStatic(fn_refParam2, &sum, &value);
+        REQUIRE(sum == value);
+        value = 3.5f;
+        callStatic(fn_refParam2, &sum, &value);
+        REQUIRE(sum == 7.5f + 3.5f);
+    }
+
+    // Function params can be references, which may return values
+//    SECTION("Function params can be references (references)")
+//    {
+//        using namespace ponder::runtime;
+//
+//        int b = 7;
+//        ponder::Value ret;
+//        ret = callStatic(fn_refParam3, 3, b);
+//        REQUIRE(ret.to<int>() == 7 + 3);
+//        REQUIRE(b == 7);
+//    }
+//
+//    SECTION("Function params can return results (references)")
+//    {
+//        using namespace ponder::runtime;
+//
+//        float sum = 0;
+//        float value = 7.5f;
+//        ponder::Value ret;
+//        callStatic(fn_refParam2, &sum, &value);
+//        REQUIRE(sum == value);
+//        value = 3.5f;
+//        callStatic(fn_refParam2, &sum, &value);
+//        REQUIRE(sum == 7.5f + 3.5f);
+//    }
 
     SECTION("Function call helpers can be used direct")
     {

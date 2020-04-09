@@ -52,13 +52,24 @@ static inline void destroy(const UserObject &uo);
 namespace detail {
 
 template <typename... A>
-struct ArgsBuilder { static Args makeArgs(A&&... args) { return {std::forward<A>(args)...}; } };
+struct ArgsBuilder
+{
+    static Args makeArgs(A&&... args)
+    {
+        return Args(std::forward<A>(args)...);
+    }
+};
     
 template <>
-struct ArgsBuilder<Args> { static Args makeArgs(const Args& args) { return args; } };
+struct ArgsBuilder<Args> {
+    static Args makeArgs(const Args& args) { return args; }
+    static Args makeArgs(Args&& args) { return std::move(args); }
+};
 
 template <>
-struct ArgsBuilder<void> { static Args makeArgs(const Args& args) { return Args::empty; } };
+struct ArgsBuilder<void> {
+    static Args makeArgs(const Args& args) { return Args::empty; }
+};
 
     
 struct UserObjectDeleter {
@@ -211,9 +222,8 @@ public:
 private:
     
     const Function &m_func;
-    runtime::impl::FunctionCaller *m_caller;
+    runtime::detail::FunctionCaller *m_caller;
 };
-    
     
 /**
  * \brief This object is used to invoke a function
@@ -261,7 +271,7 @@ public:
 private:
     
     const Function &m_func;
-    runtime::impl::FunctionCaller *m_caller;
+    runtime::detail::FunctionCaller *m_caller;
 };
 
 //--------------------------------------------------------------------------------------
